@@ -21,10 +21,11 @@ object ModuleAntiStaff : ClientModule("AntiStaff", Category.MISC) {
 
     private val showInTabList by boolean("ShowInTabList", true)
     private val serverStaffList = hashMapOf<String, Set<String>>()
+    private val server by text("Server","")
 
     override fun enable() {
         val serverEntry = mc.currentServerEntry ?: return
-        val address = serverEntry.address.dropPort().rootDomain()
+        val address = server.ifEmpty { serverEntry.address.dropPort().rootDomain()}
 
         if (serverStaffList.containsKey(address)) {
             return
@@ -39,7 +40,7 @@ object ModuleAntiStaff : ClientModule("AntiStaff", Category.MISC) {
 
     @Suppress("unused")
     val handleServerConnect = sequenceHandler<ServerConnectEvent> { event ->
-        val address = event.serverInfo.address.dropPort().rootDomain()
+        val address = server.ifEmpty { event.serverInfo.address.dropPort().rootDomain() }
 
         if (serverStaffList.containsKey(address)) {
             return@sequenceHandler
