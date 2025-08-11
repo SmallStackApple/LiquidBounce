@@ -23,7 +23,7 @@ object ModuleAntiStaff : ClientModule("AntiStaff", Category.MISC) {
     private val serverStaffList = hashMapOf<String, Set<String>>()
     private val server by text("Server","")
 
-    override fun enable() {
+    override fun onEnabled() {
         val serverEntry = mc.currentServerEntry ?: return
         val address = server.ifEmpty { serverEntry.address.dropPort().rootDomain()}
 
@@ -35,7 +35,7 @@ object ModuleAntiStaff : ClientModule("AntiStaff", Category.MISC) {
         withScope {
             loadStaffList(address)
         }
-        super.enable()
+        super.onEnabled()
     }
 
     @Suppress("unused")
