@@ -29,7 +29,6 @@ import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.event.tickHandler
 import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
-import net.ccbluex.liquidbounce.features.module.ModuleManager
 import net.ccbluex.liquidbounce.features.module.modules.combat.ModuleAutoWeapon
 import net.ccbluex.liquidbounce.features.module.modules.combat.criticals.ModuleCriticals.CriticalsSelectionMode
 import net.ccbluex.liquidbounce.features.module.modules.combat.elytratarget.ModuleElytraTarget
@@ -119,6 +118,7 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     internal val ignoreOpenInventory by boolean("IgnoreOpenInventory", true)
     internal val simulateInventoryClosing by boolean("SimulateInventoryClosing", true)
 
+    // Visuals
     init {
         tree(KillAuraAutoBlock)
     }
@@ -472,9 +472,8 @@ object ModuleKillAura : ClientModule("KillAura", Category.COMBAT) {
     internal fun validateAttack(target: Entity? = null): Boolean {
         val criticalHit = target == null || player.isGliding || criticalsSelectionMode.isCriticalHit(target)
         val isInInventoryScreen = isInventoryOpen || isInContainerScreen
-        val scaffoldEnabled = ModuleManager.getModuleByName("Scaffold")?.running == true
 
-        return criticalHit && !(isInInventoryScreen && !ignoreOpenInventory && !simulateInventoryClosing) && !scaffoldEnabled
+        return criticalHit && !(isInInventoryScreen && !ignoreOpenInventory && !simulateInventoryClosing)
     }
 
     enum class RaycastMode(override val choiceName: String) : NamedChoice {

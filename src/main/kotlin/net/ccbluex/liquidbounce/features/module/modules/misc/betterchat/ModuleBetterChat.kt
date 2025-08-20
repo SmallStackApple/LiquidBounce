@@ -50,7 +50,7 @@ object ModuleBetterChat : ClientModule("BetterChat", Category.RENDER, aliases = 
     val antiClear get() = Features.ANTI_CLEAR in features
 
     /**
-     * Allows you to transform your message text to unicode.
+     * Allows you to transform your message text to Unicode.
      */
     private val forceUnicodeChat get() = Features.FORCE_UNICODE_CHAT in features
 

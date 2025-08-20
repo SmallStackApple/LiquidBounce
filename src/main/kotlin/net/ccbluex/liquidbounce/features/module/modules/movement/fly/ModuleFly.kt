@@ -84,6 +84,7 @@ object ModuleFly : ClientModule("Fly", Category.MOVEMENT, aliases = arrayOf("Gli
             FlyVerusB3896Damage,
             FlyVerusB3869Flat,
             FlyNcpClip,
+            FlyLagFireball,
 
             FlyHypixel,
             FlyHypixelFlat,
