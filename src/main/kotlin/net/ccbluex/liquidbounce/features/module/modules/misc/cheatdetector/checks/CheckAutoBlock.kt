@@ -26,56 +26,52 @@ import net.ccbluex.liquidbounce.event.handler
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.ModuleCheatDetector
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.ModuleCheatDetector.addVl
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.ModuleCheatDetector.flag
-import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.ModuleCheatDetector.flagFormat
-import net.ccbluex.liquidbounce.utils.client.chat
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.item.Items
-import net.minecraft.network.packet.c2s.play.PlayerInteractItemC2SPacket
 import net.minecraft.network.packet.s2c.play.EntityAnimationS2CPacket
-import net.minecraft.util.Hand
-import javax.annotation.Nullable
 
-//今天的编码就到这里吧
-data class PlayerState(val name: String, var blocked : Boolean, var attacked : Boolean)
+data class PlayerState(var blocked : Boolean, var attacked : Boolean)
 
 object CheckAutoBlock : Check("AutoBlock") {
 
-    private var playerStateList = mutableListOf<PlayerState>()
+    private var playerStateMap = mutableMapOf<String,PlayerState>()
     override var enabled: Boolean = super.enabled && ModuleCheatDetector.enabled
 
-    val Swords = arrayOf(Items.WOODEN_SWORD, Items.STONE_SWORD, Items.IRON_SWORD, Items.GOLDEN_SWORD, Items.DIAMOND_SWORD)
+    val Swords = setOf(
+        Items.WOODEN_SWORD,
+        Items.STONE_SWORD,
+        Items.IRON_SWORD,
+        Items.GOLDEN_SWORD,
+        Items.DIAMOND_SWORD
+    )
 
     @Suppress("unused")
     val worldChangeHandler = handler<WorldChangeEvent> {
-        playerStateList.clear()
+        playerStateMap.clear()
         return@handler
     }
-
+    //TMD狗屎判断代码写这么长
+    //还有kotlin你他妈管那个null不null的干什么啊cnm
+    //希望qwen3能帮一下我
+    //嘿嘿它帮我了
     @Suppress("unused")
-    val attackAnimationPacketHandler = handler<PacketEvent> { event->
-        if(enabled){
-            val packet = event.packet
-            //TMD狗屎判断代码写这么长
-            //还有kotlin你他妈管那个null不null的干什么啊cnm
-            //希望qwen3能帮一下我
-            if(packet is EntityAnimationS2CPacket
-                && packet.entityId != player.id
-                && world.getEntityById(packet.entityId) is PlayerEntity
-                && world.getEntityById(packet.entityId).let{it as PlayerEntity}.mainHandStack.item in Swords
-                ){
-                val animationPacket : EntityAnimationS2CPacket = packet
-                val player = world.getEntityById(packet.entityId)
-                if(player != null)
-                {
-                    if (animationPacket.animationId == EntityAnimationS2CPacket.SWING_MAIN_HAND) {
-                        addPlayerState(player.name.string, null, true)
-                    } else if (animationPacket.animationId == EntityAnimationS2CPacket.SWING_OFF_HAND) {
-                        addPlayerState(player.name.string, true, null)
-                    }
-                }
-            }
+    val attackAnimationPacketHandler = handler<PacketEvent> { event ->
+        if (!enabled || event.packet !is EntityAnimationS2CPacket) return@handler
+
+        val packet = event.packet
+        val playerEntity = world.getEntityById(packet.entityId) as? PlayerEntity
+            ?: return@handler
+
+        // 提前过滤非剑类武器
+        if (playerEntity.mainHandStack.item !in Swords) return@handler
+
+        // 统一处理攻击动画
+        when (packet.animationId) {
+            EntityAnimationS2CPacket.SWING_MAIN_HAND ->
+                updatePlayerState(playerEntity.name.string, attacked = true)
+            EntityAnimationS2CPacket.SWING_OFF_HAND ->
+                updatePlayerState(playerEntity.name.string, blocked = true)
         }
-        return@handler
     }
 
     var tick = 0
@@ -83,14 +79,15 @@ object CheckAutoBlock : Check("AutoBlock") {
     val tickHandler = handler<GameTickEvent> { event->
         if(enabled){
             if(tick==2){
-                playerStateList.forEach {
-                    if(it.blocked && it.attacked){
-                        addVl(it.name,1)
-                        flag(it.name,"AutoBlock")
+                playerStateMap.entries.removeIf { (name, state) ->
+                    if (state.blocked && state.attacked) {
+                        addVl(name, 1)
+                        flag(name, "AutoBlock")
+                        true // 移除已处理项
+                    } else {
+                        false // 保留未完成项
                     }
                 }
-                tick = 0
-                playerStateList.clear()
             }
             tick++
         }
@@ -104,20 +101,22 @@ object CheckAutoBlock : Check("AutoBlock") {
     //破防了Boolean?Boolean?Boolean?Boolean?Boolean?
     //Null cannot be a value of a non-null type 'Boolean'.Null cannot be a value of a non-null type 'Boolean'.
     //Fuck you kotlin Ij
-    private fun addPlayerState(player: String, blocked: Boolean?, attacked: Boolean?) {
-        val state = playerStateList.find{it.name == player}
-        if (state != null){
-            state.blocked = blocked ?: state.blocked
-            state.attacked = attacked ?: state.attacked
-        } else {
-            playerStateList.add(PlayerState(player,blocked?:false,attacked?:false))
+    private fun updatePlayerState(playerName: String, blocked: Boolean = false, attacked: Boolean = false) {
+        val state = playerStateMap.getOrPut(playerName) {
+            PlayerState(
+                blocked = false,
+                attacked = false
+            )
         }
+
+        if (blocked) state.blocked = true
+        if (attacked) state.attacked = true
     }
 
     override fun onEnabled() {
-        playerStateList.clear()
+        playerStateMap.clear()
     }
     override fun onDisabled() {
-        playerStateList.clear()
+        playerStateMap.clear()
     }
 }
