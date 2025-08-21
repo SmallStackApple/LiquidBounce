@@ -22,7 +22,4 @@ package net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.chec
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
 
 
-abstract class Check(name:String) : ToggleableConfigurable(name = name, enabled = true) {
-
-    abstract var resetVlTime : Int
-}
+abstract class Check(name:String) : ToggleableConfigurable(name = name, enabled = true)
