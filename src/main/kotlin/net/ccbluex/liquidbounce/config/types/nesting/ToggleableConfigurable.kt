@@ -29,6 +29,7 @@ import net.ccbluex.liquidbounce.event.removeEventListenerScope
 import net.ccbluex.liquidbounce.features.module.MinecraftShortcuts
 import net.ccbluex.liquidbounce.script.ScriptApiRequired
 import net.ccbluex.liquidbounce.utils.client.inGame
+import net.ccbluex.liquidbounce.utils.client.logger
 
 /**
  * A [ToggleableConfigurable] has a state that can be toggled on and off. It also allows you
@@ -44,9 +45,13 @@ abstract class ToggleableConfigurable(
     MinecraftShortcuts {
 
     @ScriptApiRequired
-    override var enabled by boolean("Enabled", enabled)
+    @get:JvmName("getEnabledValue")
+    val enabledValue: Value<Boolean> = boolean("Enabled", enabled)
         .also(::onEnabledValueRegistration)
-        .onChange(::onToggled)
+        .onChange { state -> onToggled(state) }
+
+    @ScriptApiRequired
+    override var enabled by enabledValue
 
     open fun onEnabledValueRegistration(value: Value<Boolean>): Value<Boolean> {
         return value
@@ -68,14 +73,18 @@ abstract class ToggleableConfigurable(
         }
 
         if (!state) {
-            // Cancel all sequences when the module is disabled, maybe disable first and then cancel?
-            cancelAllSequences(this)
-            // Remove and cancel coroutine scope
-            removeEventListenerScope()
+            runCatching {
+                // Cancel all sequences when the module is disabled, maybe disable first and then cancel?
+                cancelAllSequences(this)
+                // Remove and cancel coroutine scope
+                removeEventListenerScope()
+            }.onFailure {
+                logger.error("Failed to cancel sequences or remove scope for $this", it)
+            }
         }
 
         val state = super.onToggled(state)
-        updateChildState(state)
+        this@ToggleableConfigurable.updateChildState(state)
         return state
     }
 
@@ -86,18 +95,40 @@ abstract class ToggleableConfigurable(
     override val running: Boolean
         get() = super.running && enabled
 
-    override fun parent() = parent
+    final override fun parent() = parent
 
-    @ScriptApiRequired
-    @Suppress("unused")
-    fun getEnabledValue(): Value<*> = this.inner[0]
+    protected fun <T : Choice> choices(name: String, active: T, choices: Array<T>) =
+        choices(this, name, active, choices)
+
+    protected fun <T : Choice> choices(
+        name: String,
+        activeIndex: Int = 0,
+        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
+    ) = choices(this, name, activeIndex, choicesCallback)
+
 }
 
 /**
- * Updates the state of all child [ChoiceConfigurable]s and [Toggleable]s
+ * Updates the state of all child [Configurable]s.
+ *
+ * All implementations of [Toggleable] with super class [Configurable]
+ * should call this function in [Toggleable.onToggled].
  */
-fun <T> T.updateChildState(state: Boolean)
-    where T : Configurable, T : EventListener {
-    inner.filterIsInstance<ChoiceConfigurable<*>>().forEach { it.onToggled(state) }
-    inner.filterIsInstance<ToggleableConfigurable>().forEach { it.onToggled(state, true) }
+private fun Configurable.updateChildState(state: Boolean) {
+    for (value in inner) {
+        when (value) {
+            is ToggleableConfigurable -> if (state && value.enabled) {
+                value.onToggled(state = true, isParentUpdate = true)
+            } else if (!state && value.enabled) {
+                value.onToggled(state = false, isParentUpdate = true)
+            }
+            is ChoiceConfigurable<*> -> value.updateChildState(state)
+            is Configurable -> value.updateChildState(state)
+            is Toggleable -> if (state && value.enabled) {
+                value.onToggled(true)
+            } else if (!state && value.enabled) {
+                value.onToggled(false)
+            }
+        }
+    }
 }

@@ -2,7 +2,6 @@ package net.ccbluex.liquidbounce.features.module.modules.misc
 
 import kotlinx.coroutines.Dispatchers
 import net.ccbluex.liquidbounce.api.core.HttpException
-import net.ccbluex.liquidbounce.api.core.withScope
 import net.ccbluex.liquidbounce.api.services.cdn.ClientCdn.requestStaffList
 import net.ccbluex.liquidbounce.event.events.NotificationEvent
 import net.ccbluex.liquidbounce.event.events.PacketEvent
@@ -23,7 +22,7 @@ object ModuleAntiStaff : ClientModule("AntiStaff", Category.MISC) {
     private val serverStaffList = hashMapOf<String, Set<String>>()
     private val server by text("Server","")
 
-    override fun onEnabled() {
+    override suspend fun enabledEffect() {
         val serverEntry = mc.currentServerEntry ?: return
         val address = server.ifEmpty { serverEntry.address.dropPort().rootDomain()}
 
@@ -32,10 +31,7 @@ object ModuleAntiStaff : ClientModule("AntiStaff", Category.MISC) {
         }
         serverStaffList[address] = emptySet()
 
-        withScope {
-            loadStaffList(address)
-        }
-        super.onEnabled()
+        loadStaffList(address)
     }
 
     @Suppress("unused")

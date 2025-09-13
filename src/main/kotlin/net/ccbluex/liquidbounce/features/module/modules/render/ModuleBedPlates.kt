@@ -18,7 +18,6 @@
  */
 package net.ccbluex.liquidbounce.features.module.modules.render
 
-import it.unimi.dsi.fastutil.doubles.DoubleObjectPair
 import net.ccbluex.liquidbounce.event.computedOn
 import net.ccbluex.liquidbounce.event.events.GameTickEvent
 import net.ccbluex.liquidbounce.event.events.OverlayRenderEvent
@@ -27,21 +26,14 @@ import net.ccbluex.liquidbounce.features.module.Category
 import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.render.FontManager
 import net.ccbluex.liquidbounce.render.engine.type.Color4b
-import net.ccbluex.liquidbounce.render.newDrawContext
 import net.ccbluex.liquidbounce.render.renderEnvironmentForGUI
 import net.ccbluex.liquidbounce.utils.block.bed.BedBlockTracker
 import net.ccbluex.liquidbounce.utils.block.bed.BedState
 import net.ccbluex.liquidbounce.utils.inventory.Slots
-import net.ccbluex.liquidbounce.utils.kotlin.component1
-import net.ccbluex.liquidbounce.utils.kotlin.component2
-import net.ccbluex.liquidbounce.utils.kotlin.forEachWithSelf
 import net.ccbluex.liquidbounce.utils.kotlin.removeRange
 import net.ccbluex.liquidbounce.utils.math.sq
 import net.ccbluex.liquidbounce.utils.render.WorldToScreen
-import net.minecraft.block.*
-import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Vec3d
-import java.util.*
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
@@ -66,7 +58,9 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
     private val fontRenderer
         get() = FontManager.FONT_RENDERER
 
-    private val bedStatesWithSquaredDistance by computedOn<GameTickEvent, MutableList<DoubleObjectPair<BedState>>>(
+    private class BedStateAndDistance(@JvmField val bedState: BedState, @JvmField val distanceSq: Double)
+
+    private val bedStatesWithSquaredDistance by computedOn<GameTickEvent, MutableList<BedStateAndDistance>>(
         initialValue = mutableListOf()
     ) { _, list ->
         val cameraPos = (mc.cameraEntity ?: player).blockPos
@@ -74,11 +68,11 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
         list.clear()
 
         BedBlockTracker.iterate().mapTo(list) { (pos, bedState) ->
-            DoubleObjectPair.of(pos.getSquaredDistance(cameraPos), bedState)
+            BedStateAndDistance(bedState, pos.getSquaredDistance(cameraPos))
         }
 
-        list.removeIf { it.firstDouble() > maxDistanceSquared } // filter items out of range
-        list.sortBy { it.firstDouble() } // order by distance asc
+        list.removeIf { it.distanceSq > maxDistanceSquared } // filter items out of range
+        list.sortBy { it.distanceSq } // order by distance asc
         if (list.size > maxCount) {
             list.removeRange(fromInclusive = maxCount)
         }
@@ -86,25 +80,25 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
     }
 
     @Suppress("unused")
-    private val renderHandler = handler<OverlayRenderEvent> {
+    private val renderHandler = handler<OverlayRenderEvent> { event ->
         renderEnvironmentForGUI {
             fontRenderer.withBuffers { buf ->
-                bedStatesWithSquaredDistance.forEachWithSelf { (distSq, bedState), i, self ->
+                bedStatesWithSquaredDistance.forEach {
+                    val bedState = it.bedState
                     val screenPos = WorldToScreen.calculateScreenPos(bedState.pos.add(renderOffset))
-                        ?: return@forEachWithSelf
-                    val distance = sqrt(distSq)
+                        ?: return@forEach
+                    val distance = sqrt(it.distanceSq)
                     val surrounding = if (compact) bedState.compactSurroundingBlocks else bedState.surroundingBlocks
-
-                    val z = 1000.0F * (self.size - i - 1) / self.size
 
                     // without padding
                     val rectWidth = ITEM_SIZE * (1 + surrounding.size)
                     val rectHeight = ITEM_SIZE
 
                     // draw items and background
-                    with(newDrawContext()) {
+                    with(event.context) {
                         with(matrices) {
-                            translate(screenPos.x, screenPos.y, z)
+                            push()
+                            translate(screenPos.x, screenPos.y, screenPos.z)
                             scale(scale, scale, 1.0F)
                             translate(-0.5F * rectWidth, -0.5F * rectHeight, -1F)
 
@@ -118,16 +112,17 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
 
                             var itemX = 0
                             drawItem(bedState.block.asItem().defaultStack, itemX, 0)
-                            surrounding.forEach {
+                            surrounding.forEach { surrounding ->
                                 itemX += ITEM_SIZE
-                                drawItem(it.block.asItem().defaultStack, itemX, 0)
+                                drawItem(surrounding.block.asItem().defaultStack, itemX, 0)
                             }
+                            pop()
                         }
                     }
 
                     // draw texts
                     withMatrixStack {
-                        translate(screenPos.x, screenPos.y, z)
+                        translate(screenPos.x, screenPos.y, screenPos.z)
                         scale(scale, scale, 1.0F)
                         translate(-0.5F * rectWidth, -0.5F * rectHeight, 150F + 20F)
 
@@ -143,10 +138,10 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
                             scale = fontScale,
                         )
                         commit(buf)
-                        surrounding.forEach {
+                        surrounding.forEach { surrounding ->
                             topLeftX += ITEM_SIZE
 
-                            val defaultState = it.block.defaultState
+                            val defaultState = surrounding.block.defaultState
                             val color =
                                 if (highlightUnbreakable && defaultState.isToolRequired
                                     && Slots.Hotbar.findSlot { s -> s.isSuitableFor(defaultState) } == null
@@ -157,7 +152,7 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
                                 }
 
                             // count
-                            val countText = process(it.count.toString(), color)
+                            val countText = process(surrounding.count.toString(), color)
                             draw(
                                 countText,
                                 topLeftX + ITEM_SIZE - countText.widthWithShadow * fontScale,
@@ -169,7 +164,7 @@ object ModuleBedPlates : ClientModule("BedPlates", Category.RENDER), BedBlockTra
 
                             if (!compact) {
                                 // layer
-                                val layerText = process(ROMAN_NUMERALS[it.layer], color)
+                                val layerText = process(ROMAN_NUMERALS[surrounding.layer], color)
                                 draw(
                                     layerText,
                                     topLeftX.toFloat(),

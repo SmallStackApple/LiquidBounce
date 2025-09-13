@@ -23,9 +23,6 @@ import net.ccbluex.liquidbounce.config.AutoConfig
 import net.ccbluex.liquidbounce.config.AutoConfig.loadingNow
 import net.ccbluex.liquidbounce.config.gson.stategies.Exclude
 import net.ccbluex.liquidbounce.config.types.Value
-import net.ccbluex.liquidbounce.config.types.nesting.Choice
-import net.ccbluex.liquidbounce.config.types.nesting.ChoiceConfigurable
-import net.ccbluex.liquidbounce.config.types.nesting.Configurable
 import net.ccbluex.liquidbounce.config.types.nesting.ToggleableConfigurable
 import net.ccbluex.liquidbounce.event.EventListener
 import net.ccbluex.liquidbounce.event.EventManager
@@ -95,8 +92,7 @@ open class ClientModule(
      */
     private var locked: Value<Boolean>? = null
 
-    override val baseKey: String
-        get() = "liquidbounce.module.${name.toLowerCamelCase()}"
+    override val baseKey: String = "liquidbounce.module.${name.toLowerCamelCase()}"
 
     // Tag to be displayed on the HUD
     open val tag: String?
@@ -110,6 +106,11 @@ open class ClientModule(
     @ScriptApiRequired
     open val settings by lazy { inner.associateBy { it.name } }
 
+    /**
+     * For delayed enabling.
+     * On client startup, the [onToggled] of enabled modules (in configuration) will be called when the player first
+     * joins a world.
+     */
     internal var calledSinceStartup = false
 
     /**
@@ -117,14 +118,13 @@ open class ClientModule(
      */
     open fun onRegistration() {}
 
-    override fun onEnabledValueRegistration(value: Value<Boolean>) =
+    final override fun onEnabledValueRegistration(value: Value<Boolean>) =
         super.onEnabledValueRegistration(value).also { value ->
             // Might not include the enabled state of the module depending on the category
             if (category == Category.MISC || category == Category.FUN || category == Category.RENDER) {
                 if (this is ModuleAntiBot) {
                     return@also
                 }
-
                 value.doNotIncludeAlways()
             }
         }.notAnOption().onChanged { newState ->
@@ -138,7 +138,7 @@ open class ClientModule(
      */
     open suspend fun enabledEffect() {}
 
-    override fun onToggled(state: Boolean): Boolean {
+    final override fun onToggled(state: Boolean): Boolean {
         // Check if the module is locked and cannot be enabled
         locked?.let { locked ->
             if (locked.get()) {
@@ -208,15 +208,6 @@ open class ClientModule(
             logger.warn("$name is missing fallback description key $descriptionKey")
         }
     }
-
-    protected fun <T : Choice> choices(name: String, active: T, choices: Array<T>) =
-        choices(this, name, active, choices)
-
-    protected fun <T : Choice> choices(
-        name: String,
-        activeIndex: Int = 0,
-        choicesCallback: (ChoiceConfigurable<T>) -> Array<T>
-    ) = choices(this, name, activeIndex, choicesCallback)
 
     fun message(key: String, vararg args: Any) = translation("$baseKey.messages.$key", args = args)
 

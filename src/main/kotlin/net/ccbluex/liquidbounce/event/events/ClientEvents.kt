@@ -22,9 +22,9 @@ package net.ccbluex.liquidbounce.event.events
 
 import com.google.gson.annotations.SerializedName
 import net.ccbluex.liquidbounce.config.gson.accessibleInteropGson
-import net.ccbluex.liquidbounce.config.types.nesting.Configurable
 import net.ccbluex.liquidbounce.config.types.NamedChoice
 import net.ccbluex.liquidbounce.config.types.Value
+import net.ccbluex.liquidbounce.config.types.nesting.Configurable
 import net.ccbluex.liquidbounce.event.CancellableEvent
 import net.ccbluex.liquidbounce.event.Event
 import net.ccbluex.liquidbounce.features.chat.packet.User
@@ -35,7 +35,6 @@ import net.ccbluex.liquidbounce.integration.interop.protocol.rest.v1.game.Player
 import net.ccbluex.liquidbounce.integration.theme.component.Component
 import net.ccbluex.liquidbounce.utils.client.Nameable
 import net.ccbluex.liquidbounce.utils.inventory.InventoryAction
-import net.ccbluex.liquidbounce.utils.inventory.InventoryActionChain
 import net.ccbluex.liquidbounce.utils.inventory.InventoryConstraints
 import net.ccbluex.liquidbounce.utils.kotlin.Priority
 import net.minecraft.client.network.ServerInfo
@@ -74,7 +73,7 @@ class ModuleActivationEvent(val moduleName: String) : Event(), WebSocketEvent
 class ModuleToggleEvent(val moduleName: String, val hidden: Boolean, val enabled: Boolean) : Event(), WebSocketEvent
 
 @Nameable("refreshArrayList")
-object RefreshArrayListEvent : Event()
+object RefreshArrayListEvent : Event(), WebSocketEvent
 
 @Nameable("notification")
 class NotificationEvent(val title: String, val message: String, val severity: Severity) : Event(), WebSocketEvent {
@@ -147,14 +146,8 @@ class AccountManagerAdditionResultEvent(
 @Nameable("accountManagerRemoval")
 class AccountManagerRemovalResultEvent(val username: String?) : Event(), WebSocketEvent
 
-@Nameable("proxyAdditionResult")
-class ProxyAdditionResultEvent(val proxy: Proxy? = null, val error: String? = null) : Event(), WebSocketEvent
-
 @Nameable("proxyCheckResult")
-class ProxyCheckResultEvent(val proxy: Proxy, val error: String? = null) : Event(), WebSocketEvent
-
-@Nameable("proxyEditResult")
-class ProxyEditResultEvent(val proxy: Proxy? = null, val error: String? = null) : Event(), WebSocketEvent
+class ProxyCheckResultEvent(val proxy: Proxy? = null, val error: String? = null) : Event(), WebSocketEvent
 
 @Nameable("browserReady")
 object BrowserReadyEvent : Event()
@@ -180,7 +173,7 @@ class VirtualScreenEvent(
 class ServerPingedEvent(val server: ServerInfo) : Event(), WebSocketEvent
 
 @Nameable("componentsUpdate")
-class ComponentsUpdate(val components: List<Component>) : Event(), WebSocketEvent {
+class ComponentsUpdate(val id: String? = null, val components: List<Component>) : Event(), WebSocketEvent {
     override val serializer get() = accessibleInteropGson
 }
 
@@ -194,14 +187,14 @@ object ResourceReloadEvent : Event()
 class ScaleFactorChangeEvent(val scaleFactor: Double) : Event(), WebSocketEvent
 
 @Nameable("scheduleInventoryAction")
-class ScheduleInventoryActionEvent(val schedule: MutableList<InventoryActionChain> = mutableListOf()) : Event() {
+class ScheduleInventoryActionEvent(val schedule: MutableList<InventoryAction.Chain> = mutableListOf()) : Event() {
 
     fun schedule(
         constrains: InventoryConstraints,
         action: InventoryAction,
         priority: Priority = Priority.NORMAL
     ) {
-        schedule.add(InventoryActionChain(constrains, arrayOf(action), priority))
+        this.schedule.add(InventoryAction.Chain(constrains, listOf(action), priority))
     }
 
     fun schedule(
@@ -209,7 +202,7 @@ class ScheduleInventoryActionEvent(val schedule: MutableList<InventoryActionChai
         vararg actions: InventoryAction,
         priority: Priority = Priority.NORMAL
     ) {
-        this.schedule.add(InventoryActionChain(constrains, actions, priority))
+        this.schedule.add(InventoryAction.Chain(constrains, actions.asList(), priority))
     }
 
     fun schedule(
@@ -217,7 +210,7 @@ class ScheduleInventoryActionEvent(val schedule: MutableList<InventoryActionChai
         actions: List<InventoryAction>,
         priority: Priority = Priority.NORMAL
     ) {
-        this.schedule.add(InventoryActionChain(constrains, actions.toTypedArray(), priority))
+        this.schedule.add(InventoryAction.Chain(constrains, actions, priority))
     }
 }
 

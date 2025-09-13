@@ -34,10 +34,10 @@ import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.render.*
 import net.minecraft.client.render.VertexFormat.DrawMode
 import net.minecraft.client.util.math.MatrixStack
-import net.minecraft.item.ItemStack
 import net.minecraft.util.math.Box
 import net.minecraft.util.math.Direction
 import net.minecraft.util.math.Vec3d
+import net.minecraft.util.math.Vec3i
 import org.joml.Matrix4f
 import org.lwjgl.opengl.GL11C
 import kotlin.contracts.ExperimentalContracts
@@ -104,60 +104,13 @@ class WorldRenderEnvironment(matrixStack: MatrixStack, val camera: Camera) : Ren
     override fun relativeToCamera(pos: Vec3d): Vec3d {
         return pos.subtract(camera.pos)
     }
+
+    fun relativeToCamera(pos: Vec3i): Vec3d {
+        return Vec3d(pos.x.toDouble() - camera.pos.x, pos.y.toDouble() - camera.pos.y, pos.z.toDouble() - camera.pos.z)
+    }
 }
 
 fun newDrawContext(): DrawContext = DrawContext(mc, mc.bufferBuilders.entityVertexConsumers)
-
-private const val ITEM_SIZE = 16
-
-/**
- * Draw a tag for a list of [ItemStack]s.
- *
- * @param centerPos The render position, also the center of the whole tag.
- * @param rowLength The maximum count of stack which can be placed in one row.
- */
-@Suppress("LongParameterList")
-fun DrawContext.drawItemTags(
-    stacks: List<ItemStack>,
-    centerPos: Vec3,
-    backgroundColor: Int = Int.MIN_VALUE,
-    backgroundMargin: Int = 2,
-    scale: Float = 1.0F,
-    rowLength: Int = 9,
-) {
-    if (stacks.isEmpty()) return
-
-    val width = ITEM_SIZE * minOf(stacks.size, rowLength)
-    val height = ITEM_SIZE * (stacks.size / rowLength + if (stacks.size % rowLength != 0) 1 else 0)
-
-    matrices.push()
-
-    matrices.translate(centerPos.x, centerPos.y, 0.0F)
-    matrices.scale(scale, scale, 1.0F)
-    matrices.translate(-width / 2f, -height / 2f, centerPos.z)
-
-    // draw background
-    fill(
-        -backgroundMargin,
-        -backgroundMargin,
-        width + backgroundMargin,
-        height + backgroundMargin,
-        backgroundColor
-    )
-
-    // render stacks
-    stacks.forEachIndexed { i, stack ->
-        if (stack.isEmpty) return@forEachIndexed
-
-        val leftX = i % rowLength * ITEM_SIZE
-        val topY = i / rowLength * ITEM_SIZE
-
-        drawItem(stack, leftX, topY)
-        drawStackOverlay(mc.textRenderer, stack, leftX, topY)
-    }
-
-    matrices.pop()
-}
 
 /**
  * Helper function to render an environment with the specified [matrixStack] and [draw] block.
@@ -222,7 +175,7 @@ inline fun RenderEnvironment.withPosition(pos: Vec3, draw: RenderEnvironment.() 
  * @param pos The position vector.
  * @param draw The block of code to be executed in the transformed environment.
  */
-inline fun RenderEnvironment.withPosition(pos: Vec3d, draw: RenderEnvironment.() -> Unit) {
+inline fun <T : RenderEnvironment> T.withPosition(pos: Vec3d, draw: T.() -> Unit) {
     with(matrixStack) {
         push()
         translate(pos.x, pos.y, pos.z)
@@ -238,6 +191,13 @@ inline fun RenderEnvironment.withPosition(pos: Vec3d, draw: RenderEnvironment.()
  * Shorthand for `withPosition(relativeToCamera(pos))`
  */
 inline fun WorldRenderEnvironment.withPositionRelativeToCamera(pos: Vec3d, draw: WorldRenderEnvironment.() -> Unit) {
+    withPosition(relativeToCamera(pos), draw)
+}
+
+/**
+ * Shortcut of `withPositionRelativeToCamera(Vec3d.of(pos))`
+ */
+inline fun WorldRenderEnvironment.withPositionRelativeToCamera(pos: Vec3i, draw: WorldRenderEnvironment.() -> Unit) {
     val relativePos = relativeToCamera(pos)
 
     with(matrixStack) {
@@ -250,6 +210,7 @@ inline fun WorldRenderEnvironment.withPositionRelativeToCamera(pos: Vec3d, draw:
         }
     }
 }
+
 
 /**
  * Disables [GL11C.GL_LINE_SMOOTH] if [HAS_AMD_VEGA_APU].
