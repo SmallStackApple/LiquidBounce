@@ -26,46 +26,42 @@ import net.ccbluex.liquidbounce.features.module.ClientModule
 import net.ccbluex.liquidbounce.features.module.modules.misc.cheatdetector.checks.CheckAutoBlock
 import net.ccbluex.liquidbounce.utils.client.chat
 
-data class PlayerVl(val name: String, var vl : Int, var time : Long)
+data class PlayerVl(var vl : Int, var time : Long)
 
 object ModuleCheatDetector : ClientModule("CheatDetector", Category.MISC) {
 
     private val resetVlTime by int("ResetVlTime",500,1..2000,"s")
     val flagFormat by text("FlagFormat", "%p flagged %c (vl:%v)")
 
-    private var playerVlList = mutableListOf<PlayerVl>()
+    private var playerVlMap = mutableMapOf<String,PlayerVl>()
 
     @Suppress("unused")
     val worldChangeHandler = handler<WorldChangeEvent>{
-        playerVlList.clear()
+        playerVlMap.clear()
     }
 
     override fun onEnabled(){
-        playerVlList.clear()
+        playerVlMap.clear()
     }
 
     override fun onDisabled() {
-        playerVlList.clear()
+        playerVlMap.clear()
     }
 
     fun addVl(name: String, vl: Int){
-        val playerVl = playerVlList.find { it.name == name }
+        val playerVl = playerVlMap[name]
         if (playerVl != null){
             playerVl.vl += vl
             playerVl.time = System.currentTimeMillis()
         }else{
-            playerVlList.add(PlayerVl(name, vl, System.currentTimeMillis()))
+            playerVlMap.put(name,PlayerVl(vl, System.currentTimeMillis()))
         }
     }
 
     fun flag(player:String,check: String) {
         //我操你妈怎么这么多行
-        playerVlList.find {it.name == player}?.name?.let {
-            chat(flagFormat
-                .replace("%p",player)
-                .replace("%c",check)
-                .replace("%v",it)
-            )
+        playerVlMap[player]?.let {
+            chat(flagFormat.replace("%p",player).replace("%c",check).replace("%v",it.vl.toString()))
         }
     }
 

@@ -78,7 +78,7 @@ object CheckAutoBlock : Check("AutoBlock") {
     @Suppress("unused")
     val tickHandler = handler<GameTickEvent> { event->
         if(enabled){
-            if(tick==2){
+            if(tick==3){
                 playerStateMap.entries.removeIf { (name, state) ->
                     if (state.blocked && state.attacked) {
                         addVl(name, 1)
